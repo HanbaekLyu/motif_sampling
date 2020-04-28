@@ -8,6 +8,10 @@ These codes are based on my paper below:
   1. Hanbaek Lyu, Facundo Memoli, and David Sivakoff, 
      “Sampling random graph homomorphisms and applications to network data analysis.” 
      https://arxiv.org/abs/1910.09483
+     
+Word Adjacency Networks (WAN) data sets are due to Segarra et al. (Special thanks to Mark Eisen for sharing his data set and oringal code)
+
+  2. Segarra, Santiago, Mark Eisen, and Alejandro Ribeiro. "Authorship attribution through function word adjacency networks." IEEE Transactions on Signal Processing 63.20 (2015): 5464-5478.
   
 
 ## File description 
