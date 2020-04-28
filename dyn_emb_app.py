@@ -1,4 +1,4 @@
-from embedding.dyn_emb import Dyn_Emb
+from dyn_emb import Dyn_Emb
 import numpy as np
 import csv
 import seaborn as sns
@@ -157,10 +157,11 @@ def load_WAN_dataset():
 
 
 def wan_generate_dist_mx_frobenius(iter=100):
-    # computes classification rate of the WAN data set using CHD profiles
+    # computes classification rate of the WAN data set using Frobenius norm
     # data uses filt_lvl = 500
 
-    distance_mx = np.zeros(shape=(9, 9, iter))  # reference * validation * motifs * iteration
+    distance_mx = 300*np.ones(shape=(9, 9, iter))  # reference * validation * motifs * iteration
+    D = np.load("WAN/classification/distance_max_frobenius_min_MC.npy")
     data_rows, num_files = load_WAN_dataset()
 
     for step in np.arange(iter):
@@ -173,25 +174,22 @@ def wan_generate_dist_mx_frobenius(iter=100):
             i = index_validation[x[0]]
             for j in np.arange(5):  # validation article
                 if j != index_validation[x[0]]:  # j th article of x[0]th author is not in the validation set
-
-                    A1 = np.genfromtxt("WAN/" + data_rows[5 * x[0] + j]['filename'] + ".txt", usecols=range(211))
-                    A2 = np.genfromtxt("WAN/" + data_rows[5 * x[1] + i]['filename'] + ".txt", usecols=range(211))
-                    distance_mx[x[0], x[1], step] += np.linalg.norm(A1 - A2, ord=None)
+                    distance_mx[x[0], x[1], step] =  np.minimum(distance_mx[x[0], x[1], step], D[5*x[0]+j, 5*x[1] + i])
         print(step)
     # distance_mx = np.sum(distance_mx, axis=2) / (4*distance_mx.shape[2])
-    distance_mx = distance_mx / 4
-    np.save("distance_mx_frobenius", distance_mx)
+    # distance_mx = distance_mx / 4
+    np.save("WAN/classification/distance_score_frobenius_min_MC", distance_mx)
     return distance_mx
 
 
-def wan_generate_dist_mx(iter=100):
-    # computes classification rate of the WAN data set using CHD profiles
+def wan_generate_dist_mx_KL(iter=100):
+    # computes classification rate of the WAN data set using Frobenius norm
     # data uses filt_lvl = 500
-    a00 = np.load('chd_mx_00.npy')  #a00.shape = (500,45)
-    a01 = np.load('chd_mx_01.npy')
-    a11 = np.load('chd_mx_11.npy')
 
-    distance_mx = np.zeros(shape=(9, 9, 3, iter))  # reference * validation * motifs * iteration
+    distance_mx = 300*np.ones(shape=(9, 9, iter))  # reference * validation * motifs * iteration
+    D = np.load("WAN/classification/distance_max_KL_min_MC.npy")
+    data_rows, num_files = load_WAN_dataset()
+
     for step in np.arange(iter):
         # sample indices for the validation set for each of the 9 authors
         index_validation = np.random.randint(5, size=(1, 9))
@@ -202,19 +200,94 @@ def wan_generate_dist_mx(iter=100):
             i = index_validation[x[0]]
             for j in np.arange(5):  # validation article
                 if j != index_validation[x[0]]:  # j th article of x[0]th author is not in the validation set
-                    distance_mx[x[0], x[1], 0, step] += np.linalg.norm(a00[:, 5 * x[0] + j] - a00[:, 5*x[1]+i], ord=1)/500
-                    distance_mx[x[0], x[1], 1, step] += np.linalg.norm(a01[:, 5 * x[0] + j] - a01[:, 5*x[1]+i], ord=1)/500
-                    distance_mx[x[0], x[1], 2, step] += np.linalg.norm(a11[:, 5 * x[0] + j] - a11[:, 5*x[1]+i], ord=1)/500
+                    distance_mx[x[0], x[1], step] =  np.minimum(distance_mx[x[0], x[1], step], D[5*x[0]+j, 5*x[1] + i])
+        print(step)
+    # distance_mx = np.sum(distance_mx, axis=2) / (4*distance_mx.shape[2])
+    # distance_mx = distance_mx / 4
+    np.save("WAN/classification/distance_score_KL_min_MC", distance_mx)
+    return distance_mx
 
-    distance_mx = distance_mx / 4
+def wan_dist_mx_frobenius():
+    # computes Frobenius distance between the 45 novels
 
-    np.save("distance_mx", distance_mx)
+    distance_mx = np.zeros(shape=(45, 45))  # reference * validation * motifs * iteration
+    data_rows, num_files = load_WAN_dataset()
+
+    # compute the L1 distance matrix between the reference and validation profiles -- 9 by 9 by 3 by iter matrix
+    for x in itertools.product(np.arange(45), repeat=2):  # x[0] = reference author, x[1] = validation author
+        A1 = np.genfromtxt("WAN/" + data_rows[x[0]]['filename'] + ".txt", usecols=range(211))
+        A2 = np.genfromtxt("WAN/" + data_rows[x[1]]['filename'] + ".txt", usecols=range(211))
+        for row in np.arange(A1.shape[0]):
+            if np.sum(A1[row, :]) > 0:
+                A1[row, :] = A1[row, :] / np.sum(A1[row, :])
+        for row in np.arange(A2.shape[0]):
+            if np.sum(A2[row, :]) > 0:
+                A2[row, :] = A2[row, :] / np.sum(A2[row, :])
+        distance_mx[x[0], x[1]] = np.linalg.norm(A1 - A2, ord='fro')
+        print('current iteration (%i, %i) out of (45, 45)' % (x[0], x[1]))
+    np.save("WAN/classification/distance_max_frobenius_min_MC", distance_mx)
+    return distance_mx
+
+def wan_dist_mx_KL_divergence():
+    # computes relative entropy between the 45 novels
+    distance_mx = np.zeros(shape=(45, 45))  # reference * validation * motifs * iteration
+    data_rows, num_files = load_WAN_dataset()
+    emp_dist_mx = np.load("WAN/classification/WAN_emp_dist_mx.npy")
+    # print('emp_dist_mx', emp_dist_mx.shape)
+    # compute the L1 distance matrix between the reference and validation profiles -- 9 by 9 by 3 by iter matrix
+    for x in itertools.product(np.arange(45), repeat=2):  # x[0] = reference author, x[1] = validation author
+        A1 = np.genfromtxt("WAN/" + data_rows[x[0]]['filename'] + ".txt", usecols=range(211))
+        A2 = np.genfromtxt("WAN/" + data_rows[x[1]]['filename'] + ".txt", usecols=range(211))
+        for row in np.arange(A1.shape[0]):
+            if np.sum(A1[row, :]) > 0:
+                A1[row, :] = A1[row, :] / np.sum(A1[row, :])
+        for row in np.arange(A2.shape[0]):
+            if np.sum(A2[row, :]) > 0:
+                A2[row, :] = A2[row, :] / np.sum(A2[row, :])
+
+        ### Now compute relative entropy
+        d = 0
+        for y in itertools.product(np.arange(211), repeat=2):
+            if emp_dist_mx[x[0], y[0]] * A1[y] > 0:
+                if A2[y] == 0:
+                    A2[y] = 0.001
+                    d += emp_dist_mx[x[0], y[0]] * A1[y] * np.log2(A1[y] / A2[y])
+        distance_mx[x] = d
+        # print('d',d)
+        print('current iteration (%i, %i) out of (45, 45)' % (x[0], x[1]))
+    np.save("WAN/classification/distance_max_KL_min_MC", distance_mx)
+    return distance_mx
+
+def wan_generate_dist_mx(iter=100):
+    # computes classification rate of the WAN data set using CHD profiles
+    # data uses filt_lvl = 500
+    a00 = np.load('WAN/classification/chd_mx_00.npy')  #a00.shape = (500,45)
+    a01 = np.load('chd_mx_01.npy')
+    a11 = np.load('chd_mx_11.npy')
+
+    distance_mx = np.ones(shape=(9, 9, 3, iter))  # reference * validation * motifs * iteration
+    for step in np.arange(iter):
+        # sample indices for the validation set for each of the 9 authors
+        index_validation = np.random.randint(5, size=(1, 9))
+        index_validation = index_validation[0]
+
+        # compute the L1 distance matrix between the reference and validation profiles -- 9 by 9 by 3 by iter matrix
+        for x in itertools.product(np.arange(9), repeat=2):  # x[0] = reference author, x[1] = validation author
+            i = index_validation[x[0]]
+            for j in np.arange(5):  # validation article
+                if j != index_validation[x[0]]:  # j th article of x[0]th author is not in the validation set
+                    distance_mx[x[0], x[1], 0, step] = np.minimum(distance_mx[x[0], x[1], 0, step], np.linalg.norm(a00[:, 5 * x[0] + j] - a00[:, 5*x[1]+i], ord=np.inf)/500)
+                    distance_mx[x[0], x[1], 1, step] = np.minimum(distance_mx[x[0], x[1], 1, step], np.linalg.norm(a01[:, 5 * x[0] + j] - a01[:, 5*x[1]+i], ord=np.inf)/500)
+                    distance_mx[x[0], x[1], 2, step] = np.minimum(distance_mx[x[0], x[1], 2, step], np.linalg.norm(a11[:, 5 * x[0] + j] - a11[:, 5*x[1]+i], ord=np.inf)/500)
+        print('current iteration %i out of %i' % (step, iter))
+
+    np.save("WAN/classification/distance_mx_min_00", distance_mx)
     return distance_mx
 
 
 def wan_chd_distance_mx():
-    # a = np.load('distance_mx.npy')
-    a = np.load('distance_mx_frobenius.npy')
+    a = np.load('WAN/classification/distance_mx_min_00.npy')
+    # a = np.load('distance_mx_frobenius.npy')
     # c00 = np.sum(a[:, :, 0, :], axis=2) / a.shape[3]
     # c01 = np.sum(a[:, :, 1, :], axis=2) / a.shape[3]
     # c11 = np.sum(a[:, :, 2, :], axis=2) / a.shape[3]
@@ -275,10 +348,21 @@ def wan_dendrogram():
     demb = Dyn_Emb(c11)
     demb.plot_dendro(cap=1.5, labels=authors_list)
 
+def compute_stationary_distribution():
+    data_rows, num_files = load_WAN_dataset()
+    emp_dist_mx = np.zeros(shape=(45, 211))
+    for i in np.arange(0, 45):
+        A = np.genfromtxt("WAN/" + data_rows[i]['filename'] + ".txt", usecols=range(211))
+        demb = Dyn_Emb(A)
+        emp_dist_mx[i,:] = demb.compute_empirical_distribution(iterations=1000, sub_iterations=100)
+        print('current iteration %i out of %i' % (i, 45))
+    np.save("WAN/classification/WAN_emp_dist_mx.npy", emp_dist_mx)
+    return emp_dist_mx
 
 def wan_compute_classification_rate():
-    # a = np.load('distance_mx.npy')  # a.shape = (9,9,3,1000)
-    a = np.load('distance_mx_frobenius.npy')  # a.shape = (9,9,3,1000)
+    # a = np.load('WAN/classification/distance_score__min_MC.npy')  # a.shape = (9,9,3,1000)
+    a = np.load('WAN/classification1/distance_mx_KL_45_top50.npy')  # a.shape = (9,9,3,1000)
+    # a = np.load('WAN/classification/distance_mx_frobenius.npy')  # a.shape = (9,9,3,1000)
 
     '''
     rate = np.zeros(shape=(9,3))  # author * motif
@@ -294,7 +378,7 @@ def wan_compute_classification_rate():
                     print(c)
                     print(prediction)
     rate = rate/a.shape[3]
-    np.save("classification_rate", rate)
+    np.save("WAN/classification/classification_rate_CHD_min", rate)
     '''
     rate = np.zeros(shape=(9, 3))  # author * motif
     for i in np.arange(a.shape[2]):
@@ -308,18 +392,57 @@ def wan_compute_classification_rate():
                     print(c)
                     print(prediction)
     rate = rate / a.shape[2]
-    np.save("classification_rate_fronenius", rate)
+    # np.save("classification_rate_fronenius", rate)
+    np.save("WAN/classification/classification_rate_KL_min_top50", rate)
+
 
     return rate
+
+def compute_CHD_profiles():
+    ### compute CHD profiles of the 45 novels WAN data
+
+    data_rows, num_files = load_WAN_dataset()
+    iterations = 500
+    filt_lvl = 500
+    k1 = 0
+    k2 = 0
+    chd_mx = np.zeros((filt_lvl, 1))
+
+    for i in np.arange(0, 45):
+        A = np.genfromtxt("WAN/" + data_rows[i]['filename'] + ".txt", usecols=range(211))
+        # A = A / np.max(A)
+        # row-wise normalize to make it a Markov transition matrix
+        for row in np.arange(A.shape[0]):
+            if np.sum(A[row,:]) > 0:
+                A[row,:] = A[row,:]/np.sum(A[row,:])
+
+        demb = Dyn_Emb(A)
+        y = demb.chdp_path_exact(filt_lvl=filt_lvl, k1=0, k2=0)
+        chd_mx = np.hstack((chd_mx, y))  # for exact chd profiles
+
+        # demb.hd_path(iterations=500, k1, k2)
+        # z1, z2 = demb.chd_path(iterations=iterations, k1=k1, k2=k2)
+        # print(z1, z2)
+        # y1, y2 = demb.chdp_path(iterations=iterations, filt_lvl=filt_lvl, k1=k1, k2=k2)
+        # y = (y1+y2)/2  # y.shape = (filt_lvl, )
+        # y = y.reshape(filt_lvl, -1)   # y.shape = (filt_lvl, 1)
+        # chd_mx = np.hstack((chd_mx, y))   # for approximate chd profiles
+        print('current iteration %i out of %i' % (i, 45))
+
+    chd_mx = np.delete(chd_mx, 0, 1)  # delete the first column of zeros
+    np.save("WAN\classification\chd_mx_00", chd_mx)
+
 
 def main():
     # sources = [r'''WAN\abbott_1.txt''']
     # sources = [r'''network3.csv''']
     # sources = [r'''SBM_network1.txt''']
 
+    # compute_CHD_profiles()
+
     data_rows, num_files = load_WAN_dataset()
-    iterations = 5000
-    filt_lvl = 500
+    iterations = 500
+    filt_lvl = 100
     k1 = 1
     k2 = 1
     chd_mx = np.zeros((filt_lvl, 1))
@@ -346,7 +469,7 @@ def main():
         # demb.hd_path(iterations=500, k1, k2)
         # z1, z2 = demb.chd_path(iterations=iterations, k1=k1, k2=k2)
         # print(z1, z2)
-        y1, y2 = demb.chdp_path(iterations=iterations, filt_lvl=filt_lvl, k1=k1, k2=k2)
+        # y1, y2 = demb.chdp_path(iterations=iterations, filt_lvl=filt_lvl, k1=k1, k2=k2)
         '''
         For WAN data, the two chains only explore the giant connected component. 
         plt.spy(A, precision=0.001)
@@ -359,7 +482,7 @@ def main():
         ###
 
 
-        # Draw network plot after log scaling       
+        # Draw network plot after log scaling
 
         '''
         cmap = plt.cm.jet
@@ -379,9 +502,9 @@ def main():
         fig = plt.figure(figsize=(5,5))
         x = np.arange(filt_lvl) / filt_lvl
         ax1 = fig.add_subplot(111)
-        ax1.scatter(x, y, s=3, c='b', marker="s", label='exact')
-        # ax1.scatter(x, y1, s=3, c='b', marker="s", label='pivot')
-        # ax1.scatter(x, y2, s=3, c='r', marker="s", label='Glauber')
+        # ax1.scatter(x, y, s=3, c='b', marker="s", label='exact')
+        ax1.scatter(x, y1, s=3, c='b', marker="s", label='pivot')
+        ax1.scatter(x, y2, s=3, c='r', marker="s", label='Glauber')
         plt.legend()
         plt.axis([0, 1, 0, 1])
         ax1.set_aspect(1)
@@ -394,7 +517,7 @@ def main():
         plt.subplots_adjust(left=0.12, bottom=0.1, right=0.88, top=0.9, wspace=0, hspace=0)
         save_filename = data_rows[i]['filename'] + "_" + str(k1) + str(k2) + ".png"
         fig.savefig('WAN/profiles_mcmc_11_tight/' + save_filename)
-        # plt.show()
+        plt.show()
         '''
 
 
@@ -410,10 +533,13 @@ def main():
     chd_mx = np.delete(chd_mx, 0, 1)  # delete the first column of zeros
     np.save("chd_mx_11", chd_mx)
     '''
-
+    # wan_generate_dist_mx_KL(iter = 1000)
+    # wan_dist_mx_KL_divergence()
+    # compute_stationary_distribution()
+    # dist = wan_dist_mx_frobenius()
     # dist = wan_generate_dist_mx(iter=1000)
-    # dist = wan_generate_dist_mx_frobenius(iter=1000)
-    # rate = wan_compute_classification_rate()
+    # dist = wan_generate_dist_mx_frobenius(iter=10)
+    rate = wan_compute_classification_rate()
     # wan_chd_distance_mx()
     # wan_dendrogram()
 

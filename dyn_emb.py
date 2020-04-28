@@ -2,12 +2,13 @@ import numpy as np
 from matplotlib import pyplot as plt
 import matplotlib.animation as animation
 import numpy.matlib
-import seaborn as sns
-from sympy import symbols, Matrix, Transpose, sqrt, simplify, series
-import progressbar
+# import seaborn as sns
+# from sympy import symbols, Matrix, Transpose, sqrt, simplify, series
+# import progressbar
 from scipy.cluster.hierarchy import dendrogram, linkage
 from scipy.spatial.distance import squareform
 import itertools
+
 # import time
 # import sys
 # from io import StringIO
@@ -29,21 +30,21 @@ DEBUG = False
 class Dyn_Emb():
     def __init__(self, A):
 
-        self.A = A   # network weight matrix
+        self.A = A  # network weight matrix
 
     def indices(self, a, func):
         return [i for (i, val) in enumerate(a) if func(val)]
 
     def sub2ind(self, array_shape, rows, cols):
-        ind = rows*array_shape[1] + cols
+        ind = rows * array_shape[1] + cols
         # ind[ind < 0] = -1
         # ind[ind >= array_shape[0]*array_shape[1]] = -1
         return ind
 
     def ind2sub(self, array_shape, ind):
         # ind = r*cols + c
-        r = np.floor(ind/array_shape[1])
-        c = ind - r*array_shape[1]
+        r = np.floor(ind / array_shape[1])
+        c = ind - r * array_shape[1]
         x = np.array([r, c])
 
         x = x.astype(int)
@@ -52,34 +53,37 @@ class Dyn_Emb():
     def path_adj(self, k1, k2):
         # generates adjacency matrix for the path motif of k1 left nodes and k2 right nodes
         if k1 == 0 or k2 == 0:
-            k3 = max(k1,k2)
+            k3 = max(k1, k2)
             A = np.eye(k3 + 1, k=1, dtype=int)
         else:
-            A = np.eye(k1+k2+1, k=1, dtype = int)
-            A[k1,k1+1] = 0
-            A[0,k1+1] = 1
+            A = np.eye(k1 + k2 + 1, k=1, dtype=int)
+            A[k1, k1 + 1] = 0
+            A[0, k1 + 1] = 1
         return A
 
     def cycle_adj(self, k1, k2):
         # generates adjacency matrix for the path motif of k1 left nodes and k2 right nodes
         A = self.path_adj(k1, k2)
         if k1 == 0 and k2 == 0:
-            A[0,0] = 1
+            A[0, 0] = 1
         elif k1 == 0 or k2 == 0:
             k3 = max(k1, k2)
-            A[0,k3] = A[0,k3] + 1
+            A[0, k3] = A[0, k3] + 1
         else:
-            A[k1, k1 + k2] = A[k1, k1 + k2]+1
+            A[k1, k1 + k2] = A[k1, k1 + k2] + 1
         return A
 
-    def RW_update(self, x):
+    def RW_update(self, x, use_rejection=True, symmetrize=True):
         # A = N by N matrix giving edge weights on networks
         # x = RW is currently at site x
         # stationary distribution = uniform
 
         A = self.A
         [N, N] = np.shape(A)
-        dist_x = np.maximum(A[x, :], np.transpose(A[:, x]))
+        if symmetrize:
+            dist_x = np.maximum(A[x, :], np.transpose(A[:, x]))
+        else:
+            dist_x = A[x, :]
         # dist_x = A[x,:]
         #  dist_x = np.where(dist_x > 0, 1, 0)  # make 1 if positive, otherwise 0
         # (!!! The above line seem to cause disagreement b/w Pivot and Glauber chains in WAN data for
@@ -95,7 +99,10 @@ class Dyn_Emb():
             # (!!! Symmetrizing the edge weight here does not seem to affect the convergence rate for WAN data)
             # dist_y = A[y, :]
             # prop_accept = min(1, A[y, x] * sum(dist_y) / (sum(dist_x) * A[x, y]))
-            prop_accept = min(1, sum(dist_x)/sum(dist_y))
+            if use_rejection:
+                prop_accept = min(1, sum(dist_x) / sum(dist_y))
+            else:
+                prop_accept = 1
 
             if np.random.rand() > prop_accept:
                 y = x  # move to y rejected
@@ -142,6 +149,19 @@ class Dyn_Emb():
             y = np.random.choice(np.arange(0, N))
         return y
 
+    def compute_empirical_distribution(self, iterations=1000, sub_iterations=100):
+        # computes empirical distribution of the RW on a given network
+        A = self.A
+        N = A.shape[0]
+        emp_dist_pivot = np.zeros(shape=(1, N))
+        for step in np.arange(sub_iterations):
+            x0 = np.random.choice(np.arange(0, N))  # random initial location of RW
+            for i in np.arange(iterations):
+                x0 = self.RW_update(x0, use_rejection=False, symmetrize=False)
+                emp_dist_pivot[0, x0] += 1
+        emp_dist_pivot = emp_dist_pivot / np.sum(emp_dist_pivot)
+        return emp_dist_pivot
+
     def Path_sample(self, x, k):
         # A = N by N matrix giving edge weights on networks
         # number of nodes in path
@@ -149,9 +169,9 @@ class Dyn_Emb():
 
         A = self.A
         [N, N] = np.shape(A)
-        emb = np.array([x]) # initialize path embedding
+        emb = np.array([x])  # initialize path embedding
 
-        for i in np.arange(0,k+1):
+        for i in np.arange(0, k + 1):
             dist = A[emb[i], :] / sum(A[emb[i], :])
             y = np.random.choice(np.arange(0, N), p=dist)
             emb = np.hstack((emb, y))
@@ -178,7 +198,7 @@ class Dyn_Emb():
         emb = np.array([x])  # initialize path embedding
 
         if sum(sum(B)) == 0:  # B is a set of isolated nodes
-            y = np.random.randint(N, size=(1, k-1))
+            y = np.random.randint(N, size=(1, k - 1))
             y = y[0]  # juts to make it an array
             emb = np.hstack((emb, y))
         else:
@@ -204,7 +224,7 @@ class Dyn_Emb():
 
         A = self.A
         [N, N] = np.shape(A)
-        emb = np.array([x]) # initialize path embedding
+        emb = np.array([x])  # initialize path embedding
 
         for i in np.arange(0, k2):
             if sum(A[emb[i], :]) > 0:
@@ -217,15 +237,15 @@ class Dyn_Emb():
             emb = np.hstack((emb, [y1]))
 
         a = np.array([x])
-        b = np.matlib.repmat(a, 1, k1+1)
+        b = np.matlib.repmat(a, 1, k1 + 1)
         b = b[0, :]
-        emb = np.hstack((b, emb[1:k2+1]))
+        emb = np.hstack((b, emb[1:k2 + 1]))
 
         for i in np.arange(0, k1):
             if sum(A[emb[i], :]) > 0:
                 dist = A[emb[i], :] / sum(A[emb[i], :])
                 y2 = np.random.choice(np.arange(0, N), p=dist)
-                emb[i+1] = y2
+                emb[i + 1] = y2
             else:
                 emb[i + 1] = emb[i]
 
@@ -270,12 +290,12 @@ class Dyn_Emb():
         if k1 + k2 == 0:
             emb[0] = self.RW_update(emb[0])
         else:
-            j =np.random.choice(np.arange(0, k1+k2))  # choose a random node to update
+            j = np.random.choice(np.arange(0, k1 + k2))  # choose a random node to update
             dist = np.arange(N)
             if j == 0:
-                dist = A[:, emb[1]] * A[:, emb[k1+1]]
+                dist = A[:, emb[1]] * A[:, emb[k1 + 1]]
             if 0 < j < k1:
-                dist = A[emb[j-1], :] * np.transpose(A[:, emb[j+1]])
+                dist = A[emb[j - 1], :] * np.transpose(A[:, emb[j + 1]])
             if j == k1 and j > 0:
                 dist = A[emb[j - 1], :]
             if j == k1 + 1:
@@ -361,7 +381,7 @@ class Dyn_Emb():
 
         A = self.A
         [N, N] = np.shape(A)
-        [k,k] = np.shape(B)
+        [k, k] = np.shape(B)
         x0 = np.random.choice(np.arange(0, N))  # random initial location of RW
         emb1 = self.tree_sample(B, x0)  # initial sampling of path embedding
         emb2 = self.tree_sample(B, x0)  # initial sampling of path embedding
@@ -369,10 +389,10 @@ class Dyn_Emb():
 
         hom1 = np.array([])
         hom2 = np.array([])
-        hom_mx1 = np.zeros([k,k])
-        hom_mx2 = np.zeros([k,k])
-        bar = progressbar.ProgressBar()
-        for i in bar(range(iterations)):
+        hom_mx1 = np.zeros([k, k])
+        hom_mx2 = np.zeros([k, k])
+
+        for i in range(iterations):
             emb1 = self.pivot_gen_update(B, emb1, ifstar=ifstar, iter=10)
             emb2 = self.glauber_gen_update(B, emb2)
             emp_dist_pivot = np.hstack((emp_dist_pivot, emb1[0]))
@@ -396,19 +416,19 @@ class Dyn_Emb():
             hom2 = np.hstack((hom2, wt2))
 
             # full adjacency matrix over the path motif
-            a1 = np.zeros([k,k])
-            a2 = np.zeros([k,k])
+            a1 = np.zeros([k, k])
+            a2 = np.zeros([k, k])
             for q in np.arange(k):
                 for r in np.arange(k):
                     a1[q, r] = A[emb1[q], emb1[r]]
                     a2[q, r] = A[emb2[q], emb2[r]]
 
-            hom_mx1 = ((hom_mx1 * i) + a1 ) / (i+1)
+            hom_mx1 = ((hom_mx1 * i) + a1) / (i + 1)
             hom_mx2 = ((hom_mx2 * i) + a2) / (i + 1)
 
             #  progress status
-            if 100 * i / iterations % 1 == 0:
-                print(i / iterations * 100)
+            # if 100 * i / iterations % 1 == 0:
+            #     print(i / iterations * 100)
 
         # take time average
         y1 = np.zeros(iterations)
@@ -441,7 +461,7 @@ class Dyn_Emb():
         #  plt.title('%i by %i Torus, k1=%i and k2=%i ' % (N, N, k1, k2))
 
         ax2 = fig.add_subplot(122)
-        ax2.hist(emp_dist_pivot, bins=np.arange(N+1)) # Make last size of the bin N+1 not to merge the last node
+        ax2.hist(emp_dist_pivot, bins=np.arange(N + 1))  # Make last size of the bin N+1 not to merge the last node
         # ax2.histogram(np.arange(N), emp_dist_pivot/sum(emp_dist_pivot), s=3, c='b', marker="s", label='pivot')
         # ax2.set_xlim([0, N])
         plt.legend()
@@ -462,13 +482,13 @@ class Dyn_Emb():
     def hd_path(self, iterations, k1=0, k2=1):
         A = self.A
         # computes unconditioned homomorphism density of F in G
-        B = np.zeros([k1+k2+1, k1+k2+1], dtype=int)
+        B = np.zeros([k1 + k2 + 1, k1 + k2 + 1], dtype=int)
         C = self.path_adj(k1, k2)
         y1, y2 = self.chd_gen(B, C, iterations)
-        t = (sum(y1) + sum(y2)) / (2*iterations)  # t(H,G | F)
+        t = (sum(y1) + sum(y2)) / (2 * iterations)  # t(H,G | F)
         return t
 
-    def cond_hom_filt(self, B, C, ifstar=True, iterations = 1000, filt_lvl=100):
+    def cond_hom_filt(self, B, C, ifstar=True, iterations=1000, filt_lvl=100):
         # computes conditional homomorphism density profile f(H,A|F) using Pivot chain time average
         # Matrices for motifs H and F are given by C and B
         # F = directed tree rooted at node 0
@@ -477,7 +497,7 @@ class Dyn_Emb():
         # filt_lvl = number of filtration levels
 
         A = self.A
-        A = A/np.amax(A)  # normalize
+        A = A / np.amax(A)  # normalize
         [N, N] = np.shape(A)
 
         x0 = np.random.choice(np.arange(0, N))  # random initial location of RW
@@ -487,8 +507,7 @@ class Dyn_Emb():
         hom1 = np.zeros([filt_lvl, 1])
         hom2 = np.zeros([filt_lvl, 1])
 
-        bar = progressbar.ProgressBar()
-        for j in bar(range(iterations)):
+        for j in range(iterations):
             emb1 = self.pivot_gen_update(B, emb1, ifstar=ifstar, iter=10)
             emb2 = self.glauber_gen_update(B, emb2)
             J = np.where(C == 1)
@@ -500,7 +519,7 @@ class Dyn_Emb():
             wt1 = np.ones([filt_lvl, 1])
             for w in np.arange(len(a)):
                 for i in np.arange(filt_lvl):
-                    wt1[i] = wt1[i] * np.where(A[emb1[a[w]], emb1[b[w]]] > i/filt_lvl, 1, 0)
+                    wt1[i] = wt1[i] * np.where(A[emb1[a[w]], emb1[b[w]]] > i / filt_lvl, 1, 0)
 
             wt2 = np.ones([filt_lvl, 1])
             for w in np.arange(len(a)):
@@ -511,8 +530,8 @@ class Dyn_Emb():
             hom2 = np.hstack((hom2, wt2))
 
             #  progress status
-            if 100*j/iterations % 1 == 0:
-                print(j/iterations*100)
+            # if 100*j/iterations % 1 == 0:
+            #    print(j/iterations*100)
 
         #  construct density profiles of filtration
         y1 = np.zeros(filt_lvl)
@@ -528,7 +547,7 @@ class Dyn_Emb():
 
         A = self.A
         B = self.path_adj(k1, k2)
-        #C = self.cycle_adj(k1, k2) - B
+        # C = self.cycle_adj(k1, k2) - B
         C = B
         print(B)
         y1, y2 = self.cond_hom_filt(B, C, ifstar=True, iterations=iterations, filt_lvl=filt_lvl)
@@ -577,8 +596,7 @@ class Dyn_Emb():
         hom1 = np.zeros([filt_lvl, 1])
         hom2 = np.zeros([filt_lvl, 1])
 
-        bar = progressbar.ProgressBar()
-        for i in bar(range(iterations)):
+        for i in range(iterations):
             emb1 = self.Pivot_update(emb1, k1, k2)
             emb2 = self.Glauber_update(emb2, k1, k2)
             b = k1
@@ -587,16 +605,16 @@ class Dyn_Emb():
 
             wt1 = np.ones([filt_lvl, 1])
             for j in np.arange(filt_lvl):
-                wt1[j] = wt1[j] * np.where(A[emb1[a], emb1[b]] > j/filt_lvl, 1, 0)
+                wt1[j] = wt1[j] * np.where(A[emb1[a], emb1[b]] > j / filt_lvl, 1, 0)
 
             wt2 = np.ones([filt_lvl, 1])
             for j in np.arange(filt_lvl):
-                wt2[j] = wt2[j] * np.where(A[emb2[a], emb2[b]] > j/filt_lvl, 1, 0)
+                wt2[j] = wt2[j] * np.where(A[emb2[a], emb2[b]] > j / filt_lvl, 1, 0)
 
             hom1 = np.hstack((hom1, wt1))
             hom2 = np.hstack((hom2, wt2))
             if i % 100 == 0:
-                print(100*i/iterations, flush=True)
+                print(100 * i / iterations, flush=True)
 
         #  construct density profiles of filtration
         y1 = np.zeros(filt_lvl)
@@ -624,17 +642,16 @@ class Dyn_Emb():
 
         return y1, y2
 
-
     '''
     def path_transform(A, dist, k):
         # computes transform of the network (A,dist) by path of k nodes
         # dist = probability dist. on nodes. type = np.ndarray
         # A = matrix of edge weights
-    
+
         N = len(dist)  # number of nodes in network
         D = np.diag(np.sqrt(dist))
         B = D@A@D
-    
+
         C = np.linalg.matrix_power(B, k-1)
         C = D@C@D
         C = C/sum(sum(C)) # normalize
@@ -644,50 +661,51 @@ class Dyn_Emb():
     def hd_edge_exact(self):
         # computes exact homomorphism density of a k1=0, k2=1 path into the network
         A = self.A
-        [N,N] = A.shape
+        [N, N] = A.shape
         hd_edge = 0
         hd_cycle = 0
-        for i,j in zip(range(N), range(N)):
-                hd_edge = hd_edge + A[i,j]
-                hd_cycle = hd_cycle + A[i,j]**2
-                if i/N % 100 == 0:
-                    print(i/N % 100)
+        for i, j in zip(range(N), range(N)):
+            hd_edge = hd_edge + A[i, j]
+            hd_cycle = hd_cycle + A[i, j] ** 2
+            if i / N % 100 == 0:
+                print(i / N % 100)
         print('hd_edge:', hd_edge)
         print('hd_cycle:', hd_cycle)
-        print('chd_cycle:', hd_cycle/hd_edge)
-        return hd_cycle/hd_edge
+        print('chd_cycle:', hd_cycle / hd_edge)
+        return hd_cycle / hd_edge
 
     def hd_2path_exact(self):
         # computes exact homomorphism density of a k1=0, k2=2 path into the network
         A = self.A
-        [N,N] = A.shape
+        [N, N] = A.shape
         hd_path = 0
         hd_cycle = 0
 
         for i, j, k in zip(range(N), range(N), range(N)):
-            hd_path = hd_path + A[i,j]*A[j,k]
-            hd_cycle = hd_cycle + A[i,j]*A[j,k]*A[i,k]
-            if i/N % 100 == 0:
-                print(i/N % 100)
+            hd_path = hd_path + A[i, j] * A[j, k]
+            hd_cycle = hd_cycle + A[i, j] * A[j, k] * A[i, k]
+            if i / N % 100 == 0:
+                print(i / N % 100)
         print('hd_path:', hd_path)
         print('hd_cycle:', hd_cycle)
-        print('chd_cycle:', hd_cycle/hd_path)
-        return hd_cycle/hd_path
+        print('chd_cycle:', hd_cycle / hd_path)
+        return hd_cycle / hd_path
 
     def chdp_edge_exact(self, filt_lvl):
         A = self.A
-        [N,N] = A.shape
+        [N, N] = A.shape
         hd_edge = 0
         hd_cycle_filt = np.zeros([filt_lvl, 1])
         for lvl in np.arange(filt_lvl):
             for x in itertools.product(np.arange(N), repeat=2):
                 if lvl == 0:
                     hd_edge = hd_edge + A[x[0], x[1]]
-                hd_cycle_filt[lvl] = hd_cycle_filt[lvl] + (A[x[0], x[1]] ** 1) * np.where(A[x[0], x[1]] > lvl / filt_lvl, 1, 0)
+                hd_cycle_filt[lvl] = hd_cycle_filt[lvl] + (A[x[0], x[1]] ** 1) * np.where(
+                    A[x[0], x[1]] > lvl / filt_lvl, 1, 0)
 
             #  progress status
-            if 100 * lvl/filt_lvl % 1 == 0:
-                print(100 * (lvl / filt_lvl % 1), flush=True)
+            # if 100 * lvl/filt_lvl % 1 == 0:
+            #    print(100 * (lvl / filt_lvl % 1), flush=True)
 
         # draw figure
         sns.set_style('darkgrid', {'legend.frameon': True})
@@ -710,20 +728,20 @@ class Dyn_Emb():
 
     def chdp_gen_exact(self, B, C, filt_lvl):
         A = self.A
-        [N,N] = A.shape
-        [k,k] = B.shape
+        [N, N] = A.shape
+        [k, k] = B.shape
 
         hd_path = 0
         hd_cycle_filt = np.zeros([filt_lvl, 1])
         for lvl in np.arange(filt_lvl):
             for x in itertools.product(np.arange(N), repeat=k):
                 # if x[1] == 0 and x[2] == 0:
-                    # print(x[0])
+                # print(x[0])
 
                 wt1 = 1
                 wt2 = 1
                 for i, j in itertools.product(np.arange(k), repeat=2):
-                    wt1 = wt1 * (A[x[i], x[j]]**B[i, j])
+                    wt1 = wt1 * (A[x[i], x[j]] ** B[i, j])
                     wt2 = wt2 * (A[x[i], x[j]] ** B[i, j])
                     if C[i, j] > 0:
                         wt2 = wt2 * np.where(A[x[i], x[j]] >= lvl / filt_lvl, 1, 0)
@@ -732,8 +750,8 @@ class Dyn_Emb():
                     hd_path = hd_path + wt1
 
             #  progress status
-            if 100 * lvl / filt_lvl % 1 == 0:
-                print(100 * (lvl / filt_lvl % 1), flush=True)
+            # if 100 * lvl / filt_lvl % 1 == 0:
+            #     print(100 * (lvl / filt_lvl % 1), flush=True)
 
         return hd_cycle_filt / hd_path
 
@@ -758,7 +776,7 @@ class Dyn_Emb():
         # underlying network = given by A
 
         A = self.A
-        A = A/np.amax(A)  # normalize
+        A = A / np.amax(A)  # normalize
         [N, N] = np.shape(A)
         [K, K] = np.shape(B)
 
@@ -769,8 +787,7 @@ class Dyn_Emb():
         hom1 = np.zeros([N, N])
         # hom2 = np.zeros([N, N])
 
-        bar = progressbar.ProgressBar()
-        for i in bar(range(iterations)):
+        for i in range(iterations):
             emb1 = self.pivot_gen_update(B, emb1, ifstar=ifstar, iter=10)
             # emb2 = glauber_gen_update(B, emb2)
             J = np.where(C == 1)
@@ -788,7 +805,7 @@ class Dyn_Emb():
             hom1[emb1[0], emb1[K - 1]] = hom1[emb1[0], emb1[K - 1]] + wt1
             # hom2[emb2[0], emb2[K - 1]] = hom2[emb2[0], emb2[K - 1]] + wt2
 
-        return hom1*(N**2)/sum(sum(hom1))
+        return hom1 * (N ** 2) / sum(sum(hom1))
 
     def motif_transform_movie(self, iterations=1000, k1=0, k2=2, ifstar=False):
         # computes motif transform A^H using Glauber/Pivot chain time average F-->G
@@ -802,7 +819,7 @@ class Dyn_Emb():
         B = self.path_adj(k1, k2)
         C = self.cycle_adj(k1, k2) - B
 
-        A = A/np.amax(A)  # normalize
+        A = A / np.amax(A)  # normalize
         [N, N] = np.shape(A)
         [K, K] = np.shape(B)
 
@@ -818,8 +835,8 @@ class Dyn_Emb():
         x = np.arange(0, N)
         y = np.arange(0, N).reshape(-1, 1)
 
-        #bar = progressbar.ProgressBar()
-        #for i in bar(range(iterations)):
+        # bar = progressbar.ProgressBar()
+        # for i in bar(range(iterations)):
         for i in np.arange(iterations):
             emb1 = self.pivot_gen_update(B, emb1, ifstar=ifstar, iter=10)
             # emb2 = self.glauber_gen_update(B, emb2)
@@ -878,7 +895,6 @@ class Dyn_Emb():
         # draw figure
         # sns.set_style('darkgrid', {'legend.frameon': True})
 
-
         # plt.title('Mark Twain - The Adventures of Tom Sawyer\n k1=%i and k2=%i' % (0, 0))
         # plt.title('Network 2 \n k1=%i and k2=%i' % (k1, k2))
         # plt.show()
@@ -889,17 +905,17 @@ class Dyn_Emb():
         # computes path transform of A via path of k nodes
         # k = 0 means k = infty
         x, y = symbols('x y')
-        z = (1-x)/2
-        w = y*sqrt(x*(1-x)/2)
+        z = (1 - x) / 2
+        w = y * sqrt(x * (1 - x) / 2)
         a = Matrix([[sqrt(z), sqrt(x), sqrt(z)]])
 
         D = Matrix([[sqrt(z), 0, 0],
-                [0, sqrt(x), 0],
-                [0, 0, sqrt(z)]])
+                    [0, sqrt(x), 0],
+                    [0, 0, sqrt(z)]])
 
         A = Matrix([[z, w, 0],
-                [w, x, w],
-                [0, w, z]])
+                    [w, x, w],
+                    [0, w, z]])
 
         Eval = list(A.eigenvals().keys())
         Evec = A.eigenvects()
@@ -914,7 +930,7 @@ class Dyn_Emb():
 
         if k == 0:
             v = V[:, 2]
-            r = (a*V[:, 2])[0]
+            r = (a * V[:, 2])[0]
             P = (r ** (-2)) * D * v * Transpose(v) * D
         else:
             U = Matrix([[Eval[0] ** (k - 1), 0, 0],
@@ -926,8 +942,7 @@ class Dyn_Emb():
 
         P0 = Matrix([[0, 0, 0], [0, 0, 0], [0, 0, 0]])
 
-        bar = progressbar.ProgressBar()
-        for i in bar(range(3)):
+        for i in range(3):
             for j in range(3):
                 q = P[i, j]
                 # q = series(q, y, 0, 2)
@@ -966,14 +981,14 @@ class Dyn_Emb():
         Z = linkage(B, 'single')
         # Make the dendrogram
 
-
         '''
         (!!! Load list of 211 function words for the WAN data set)
         '''
-        #path = r'''embedding\functionwords_list.txt'''
-        #functionwords_list = np.loadtxt(path, dtype='str')
+        # path = r'''embedding\functionwords_list.txt'''
+        # functionwords_list = np.loadtxt(path, dtype='str')
         fig, axes = plt.subplots(1, 1, figsize=(4, 12))
-        dendrogram(Z, ax=axes, orientation='right', leaf_rotation=0, labels=labels, color_threshold=1) #orientation="left"
+        dendrogram(Z, ax=axes, orientation='right', leaf_rotation=0, labels=labels,
+                   color_threshold=1)  # orientation="left"
         # plt.title("Hierarchical Clustering Dendrogram" + "\n Jane Austen - Pride and Prejudice")
         # plt.ylabel('sample index')
         plt.xlabel('distance')
