@@ -17,7 +17,7 @@ Word Adjacency Networks (WAN) data sets are due to Segarra et al. (Special thank
 ## File description 
 
   1. **dyn_emb.py** : MCMC algorithms for motif sampling and computing various CHD profiles of network data
-  2. **dyn_emb_app.py** : Codes for applying dyn_emb.py to network data of matrix form (currently implemented for Word Adjacency Networks)
+  2. **dyn_emb_app.py** : Codes for applying dyn_emb.py to network data of matrix form
   3. **WAN_classifier.py**: Codes for computing CHD profiles, distance matrices, and classification rates for WAN dataset 
   
 ## Authors
