@@ -2,6 +2,8 @@
 
 MCMC algorithms for motif sampling and computing various CHD profiles of network data
 
+![](Figures/figure1.png)
+
 ## References
 
 These codes are based on my paper below: 
