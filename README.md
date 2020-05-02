@@ -2,7 +2,10 @@
 
 MCMC algorithms for motif sampling and computing various CHD profiles of network data
 
+![](Figures/fb_full_MACC.png)
+![](Figures/fb_dendro.png)
 ![](Figures/figure1.png)
+
 
 ## References
 
@@ -21,6 +24,7 @@ Word Adjacency Networks (WAN) data sets are due to Segarra et al. (Special thank
   1. **dyn_emb.py** : MCMC algorithms for motif sampling and computing various CHD profiles of network data
   2. **dyn_emb_app.py** : Codes for applying dyn_emb.py to network data of matrix form
   3. **WAN_classifier.py**: Codes for computing CHD profiles, distance matrices, and classification rates for WAN dataset 
+  4. **dyn_emb_facebook.py**: Codes for computing Matrics of Average Cluetering Coeficients (MACC) for the Facebook100 dataset
   
 ## Authors
 
