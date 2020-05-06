@@ -3,6 +3,7 @@
 MCMC algorithms for motif sampling and computing various CHD profiles of network data
 
 ![](Figures/fb_full_MACC.png)
+![](Figures/MDS_fb.png)
 ![](Figures/fb_dendro.png)
 ![](Figures/figure1.png)
 
