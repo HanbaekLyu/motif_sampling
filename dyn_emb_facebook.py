@@ -1,4 +1,3 @@
-from dyn_emb import Dyn_Emb
 import numpy as np
 import seaborn as sns
 import itertools
@@ -7,6 +6,11 @@ import networkx as nx
 from os import listdir
 from os.path import isfile, join
 from scipy.cluster.hierarchy import dendrogram, linkage
+from sklearn import manifold
+from mpl_toolkits.mplot3d import Axes3D
+from sklearn.cluster import KMeans
+from time import time
+import plotly.graph_objects as go
 
 class Network_Motif_MCMC():
     def __init__(self,
@@ -440,6 +444,129 @@ class Network_Motif_MCMC():
         ax.imshow(arr)
         plt.show()
 
+def collect_MACC_fb():
+    # myfolder = "Data/Facebook/"
+    # onlyfiles = [f for f in listdir(myfolder) if isfile(join(myfolder, f))]
+    list = np.load("list_schools.npy")
+    MACC_mx = np.zeros(shape=(441, len(list)))
+    for i in range(len(list)):
+        MACC_mx[:,i] = np.load("Facebook_sim/" + list[i] + ".npy").reshape(441,)
+
+    np.save("MACC_mx_fb", MACC_mx)
+    return MACC_mx
+
+def plot_MDS_fb(dim=2, kmeans_num_clusters=5):
+    list = np.load("list_schools.npy")
+    list_new = []
+    for f in list:
+        list_new.append(f.replace('.txt', ''))
+    list = list_new
+    A = np.load("MACC_mx_fb.npy")
+    mds2 = manifold.MDS(2, max_iter=100, n_init=1)
+    mds3 = manifold.MDS(3, max_iter=100, n_init=1)
+    trans_data2 = mds2.fit_transform(A.T).T
+    trans_data3 = mds3.fit_transform(A.T).T
+
+    ### compute kmeans cluster labels
+    kmeans = KMeans(n_clusters=kmeans_num_clusters, random_state=0).fit(A.T)
+    labels = kmeans.labels_
+
+    random_colors = []
+    for i in range(len(labels)):
+        random_colors.append(np.random.rand(3))
+
+    fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(9, 9), subplot_kw={'xticks': [], 'yticks': []})
+
+    if dim==2:
+        ax = fig.add_subplot(111)
+        for i in range(len(list)):
+            ax.scatter(trans_data2[0][i], trans_data2[1][i], marker='o', color=random_colors[labels[i]])
+            ax.text(trans_data2[0][i] - .05, trans_data2[1][i] + .05, list[i], fontsize=5)
+        plt.tight_layout()
+    else:
+        ax = fig.add_subplot(111, projection='3d')
+        for i in range(len(list)):
+            ax.scatter(trans_data3[0][i], trans_data3[1][i], trans_data3[2][i], marker='o', color=random_colors[labels[i]])
+            ax.text(trans_data3[0][i] - .05, trans_data3[1][i] + .03, trans_data3[2][i]+0.05, list[i], fontsize=5)
+        plt.tight_layout()
+
+    # ax[1] = fig.add_subplot(122, projection='3d')
+    # ax[1].scatter(trans_data3[0], trans_data3[1], trans_data3[2], label=list)
+    # for i, txt in enumerate(list):
+    #    ax[1].annotate(list[i], (trans_data3[0][i], trans_data3[1][i], trans_data3[2][i]))
+
+    fig.savefig('Facebook_sim/' + 'MACC_MDS_' + str(dim) + ".png", bbox_inches='tight')
+    plt.show()
+
+def plot_fb_baseline_clustering(num_schools=100, kmeans_num_clusters=5, show_dendrogram=False):
+    ### Use number of nodes and avg degree for baseline k-means clutering
+    a = np.load("Facebook_sim/data_ntwk_computation_full.npy", allow_pickle=True)
+    b = a.item()
+    c = [f for f in b.keys()]  ## list of schools
+    d = np.random.choice(c, num_schools, replace=False)  ## sublist of schools
+    ct = []
+    for i in d:
+        ct.append(b.get(i).get('computation time'))
+    idx = np.argsort(ct)
+
+    d_sorted = []
+    comp_time = []
+    num_nodes = []
+    avg_deg = []
+    for j in range(len(idx)):
+        d_sorted.append(d[idx[j]].replace('.txt', ''))
+        comp_time.append(2 * np.round(b.get(d[idx[j]]).get('computation time'), decimals=2))
+        num_nodes.append(np.round(b.get(d[idx[j]]).get('num nodes'), decimals=2))
+        avg_deg.append(np.round(b.get(d[idx[j]]).get('avg deg'), decimals=2))
+
+    A = np.hstack((np.asarray(num_nodes).reshape(-1,1), np.asarray(avg_deg).reshape(-1,1)))
+    ### Normalize A to compare networks relatively
+    A[:, 0] = A[:, 0]/np.max(A[:,0])
+    A[:, 1] = A[:, 1] / np.max(A[:, 1])
+
+    if show_dendrogram:
+        dist_mx = np.zeros(shape=(num_schools, num_schools))
+        for x in itertools.product(np.arange(len(d_sorted)), repeat=2):
+            A1 = A[x[0], :]
+            A2 = A[x[1], :]
+            dist_mx[x] = np.linalg.norm(A1/np.max(A[:,0]) - A2/np.max(A[:,1]), ord=2)
+        Z = linkage(dist_mx, 'single')
+        # Make the dendrogram
+
+        fig, axes = plt.subplots(1, 1, figsize=(10, 3))
+        R = dendrogram(Z, ax=axes, orientation='top', leaf_rotation=90, labels=d_sorted, leaf_font_size=6,
+                       color_threshold=0.25)  # orientation="left"
+        # plt.title("Hierarchical Clustering Dendrogram" + "\n Jane Austen - Pride and Prejudice")
+        # plt.ylabel('sample index')
+        plt.ylabel('distance')
+        # Add horizontal line.
+        # plt.axvline(x=1, c='grey', lw=1, linestyle='dashed')
+        # plt.xticks(np.array([0.00, 0.25, 0.50, 0.75, 1.00, 1.25, 1.5]), np.array([1, 0.75, 0.50, 0.25, 0, -0.25, -0.5]))
+        plt.tight_layout()
+        plt.show()
+
+    ### compute kmeans cluster labels
+    kmeans = KMeans(n_clusters=kmeans_num_clusters, random_state=0).fit(A)
+    labels = kmeans.labels_
+
+    random_colors = []
+    for i in range(len(labels)):
+        random_colors.append(np.random.rand(3))
+
+    fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(9, 9), subplot_kw={'xticks': [], 'yticks': []})
+
+    ax = fig.add_subplot(111)
+    for i in range(len(d_sorted)):
+        ax.scatter(num_nodes[i], avg_deg[i], marker='o', color=random_colors[labels[i]])
+        ax.text(num_nodes[i] - 1, avg_deg[i] + 1, d_sorted[i], fontsize=5)
+    ax.set_xlabel('num nodes')
+    ax.set_ylabel('avg degree')
+    plt.tight_layout()
+
+    fig.savefig('Facebook_sim/' + 'baseline_MDS_' + ".png", bbox_inches='tight')
+    plt.show()
+
+
 def compute_dist_mx_fb():
     # myfolder = "Data/Facebook/"
     # onlyfiles = [f for f in listdir(myfolder) if isfile(join(myfolder, f))]
@@ -469,7 +596,7 @@ def fb_dendrogram(path=None):
     # Make the dendrogram
 
     fig, axes = plt.subplots(1, 1, figsize=(10, 3))
-    dendrogram(Z, ax=axes, orientation='top', leaf_rotation=90, labels=list_new, leaf_font_size=6, color_threshold=1)  # orientation="left"
+    R = dendrogram(Z, ax=axes, orientation='top', leaf_rotation=90, labels=list_new, leaf_font_size=6, color_threshold=1)  # orientation="left"
     # plt.title("Hierarchical Clustering Dendrogram" + "\n Jane Austen - Pride and Prejudice")
     # plt.ylabel('sample index')
     plt.ylabel('distance')
@@ -478,7 +605,7 @@ def fb_dendrogram(path=None):
     # plt.xticks(np.array([0.00, 0.25, 0.50, 0.75, 1.00, 1.25, 1.5]), np.array([1, 0.75, 0.50, 0.25, 0, -0.25, -0.5]))
     plt.tight_layout()
     plt.show()
-    return Z
+    return R
 
 def fb_display_clustering_mx(path=None):
     #  display learned dictionary
@@ -504,11 +631,55 @@ def fb_display_clustering_mx(path=None):
         ax.xaxis.set_label_coords(0.5, -0.05)
         # use gray_r to make black = 1 and white = 0
 
-
     # plt.suptitle(title)
     fig.subplots_adjust(left=0.1, bottom=0.1, right=0.9, top=0.9, wspace=0.2, hspace=0)
     fig.savefig('Facebook_sim/' + 'fb_full_MACC' + ".png", bbox_inches='tight')
     # plt.show()
+
+def make_dict_computation_time():
+    a = np.load("Facebook_sim/computation_time.npy", allow_pickle=True)
+    list = [f for f in a.item().keys()]
+    g = {}
+    for i in list:
+        print('Current school', i)
+        edgelist = np.genfromtxt("Data/Facebook/"+i, delimiter=',', dtype=int)
+        edgelist = edgelist.tolist()
+        G = nx.Graph(edgelist)
+        l_sub = {'computation time': a.item().get(i), 'num nodes': len(G.nodes), 'avg deg': 2*len(G.edges())/len(G.nodes)}
+        g.update({i:l_sub})
+        np.save("Facebook_sim/data_ntwk_computation_full", g)
+    print(g)
+
+def print_computation_time(num_schools=20):
+    a = np.load("Facebook_sim/data_ntwk_computation_full.npy", allow_pickle=True)
+    b = a.item()
+    c = [f for f in b.keys()]  ## list of schools
+    d = np.random.choice(c, num_schools, replace=False) ## sublist of schools
+    ct = []
+    for i in d:
+        ct.append(b.get(i).get('computation time'))
+    idx = np.argsort(ct)
+
+    # 5.271885395050049  -- my laptop, Caltech36
+    # 10.472821474075317 -- cluster, Caltech36
+
+    d_sorted = []
+    comp_time = []
+    num_nodes = []
+    avg_deg = []
+    for j in range(len(idx)):
+        d_sorted.append(d[idx[j]].replace('.txt', ''))
+        comp_time.append(2*np.round(b.get(d[idx[j]]).get('computation time'), decimals=2))
+        num_nodes.append(np.round(b.get(d[idx[j]]).get('num nodes'), decimals=2))
+        avg_deg.append(np.round(b.get(d[idx[j]]).get('avg deg'), decimals=2))
+
+    fig = go.Figure(data=[go.Table(
+                            columnorder=[1, 2, 3, 4],
+                            columnwidth=[80, 80, 80, 80],
+                            header=dict(values=['School', 'Computation time (sec)', 'Number of nodes', 'Average degree']),
+                            cells=dict(values=[d_sorted, comp_time, num_nodes, avg_deg]))
+                          ])
+    fig.show()
 
 def main():
     ### set motif arm lengths
@@ -517,14 +688,24 @@ def main():
     n_components = 25
     foldername = 'Facebook_sim'
 
-    myfolder = "Data/Facebook/"
+    myfolder = "Data/Facebook"
     onlyfiles = [f for f in listdir(myfolder) if isfile(join(myfolder, f))]
+    onlyfiles = onlyfiles[15:]
     # onlyfiles.remove('desktop.ini')
     onlyfiles = ['Caltech36.txt']
 
     # dist_mx = compute_dist_mx_fb()
-    # fb_dendrogram(path=None)
-    fb_display_clustering_mx()
+    fb_dendrogram(path=None)
+    # fb_display_clustering_mx()
+    # collect_MACC_fb()
+    # plot_MDS_fb(dim=2, kmeans_num_clusters=5)
+    # plot_computation_time()
+    # print_computation_time(num_schools=30)
+    # plot_fb_baseline_clustering(num_schools=100, kmeans_num_clusters=5, show_dendrogram=False)
+
+    dict_comp_time = {}
+    # r = np.load("Facebook_sim/computation_time.npy", allow_pickle='TRUE')
+    # computation_time = r.item()
 
     for school in onlyfiles:
         directory = "Data/Facebook/"
@@ -538,8 +719,19 @@ def main():
                                         drop_edge_prob=0)
 
         title = str(school)
+        t0 = time()
         chd_mx = motif_MCMC.chd_path_mx(k1=k1, k2=k2, iterations=None, is_glauber=True, title=title)
-        print(chd_mx)
+        t1 = time() - t0
+
+        ### record network sizes and computation time
+        l_sub = {'computation time': t1-t0,
+                 'num nodes': len(motif_MCMC.G.nodes),
+                 'avg deg': 2 * len(motif_MCMC.G.edges()) / len(motif_MCMC.G.nodes)}
+        dict_comp_time.update({school:l_sub})
+        # np.save("Facebook_sim/dict_computation_time", dict_comp_time)
+        print('time spent:', t1)
+        # print(chd_mx)
+
 
 if __name__ == '__main__':
     main()
