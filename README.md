@@ -3,7 +3,7 @@
 <br/> This repository contains the scripts that generate the main figures reported in the paper: <br/>
 
 
-Facundo Memoli, Hanbaek Lyu, and David Sivakoff,\
+Hanbaek Lyu, Facundo Memoli, and David Sivakoff,\
 [*"Sampling random graph homomorphisms and applications to network data analysis*"](https://arxiv.org/abs/1910.09483) (arXiv 2019)
 
 
