@@ -15,6 +15,8 @@ Some of our code is also available as the python package [**NNetwork**](https://
 
 &nbsp;
 
+![](Figures/repo_figures/motif_video_20.gif)
+&nbsp;
 ![](Figures/repo_figures/fig1.png)
 &nbsp;
 ![](Figures/repo_figures/fig2.png)
