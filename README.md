@@ -27,6 +27,9 @@ Some of our code is also available as the python package [**NNetwork**](https://
 &nbsp;
 ![](Figures/repo_figures/fig6.png)
 &nbsp;
+![](Figures/repo_figures/fig7.png)
+&nbsp;
+![](Figures/repo_figures/fig8.png)
 
 ## Usage
 
