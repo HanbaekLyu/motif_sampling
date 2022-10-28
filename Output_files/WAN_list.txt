@@ -1,0 +1,47 @@
+Numbering, Author, Title, subnumber
+1, Jacob Abbott, Caleb in the Country, 1
+2, Jacob Abbott, Charles I, 2
+3, Jacob Abbott, Cleopatra, 3
+4, Jacob Abbott, Cyrus the Great, 4
+5, Jacob Abbott, Darius the Great, 5
+6, Thomas Bailey Aldrich, Marjorie Daw, 1 
+7, Thomas Bailey Aldrich, The Cruise of the Dolphin, 2 
+8, Thomas Bailey Aldrich, The Little Violinist, 3
+9, Thomas Bailey Aldrich, Mademoiselle Olympe Zabriski, 4
+10, Thomas Bailey Aldrich, The Cruise of the Dolphin, 5 
+11, Grant Allen, The British Barbarians, 1
+12, Grant Allen, Biographies of Working Men,2
+13, Grant Allen, Anglo-Saxon Britain, 3
+14, Grant Allen, Charles Darwin, 4 
+15, Grant Allen, An African Millionaire, 5  
+16, Jane Austen, Northanger Abbey, 1
+17, Jane Austen, Emma, 2
+18, Jane Austen, Mansfield Park, 3
+19, Jane Austen, Pride and Prejudice, 4
+20, Jane Austen, Sense and Sensibility, 5
+21, Charles Dickens, A Christmas Carol, 1
+22, Charles Dickens, David Copperfield, 2
+23, Charles Dickens, Bleak House, 3
+24, Charles Dickens, Oliver Twist, 4 
+25, Charles Dickens, Holiday Romance, 5
+26, Christopher Marlowe, Edward the Second, 1
+27, Christopher Marlowe, The Tragical History of Doctor Faustus, 2
+28, Christopher Marlowe, The Jew of Malta, 3
+29, Christopher Marlowe, Massacre at Paris, 4
+30, Christopher Marlowe, Hero and Leander and Other Poems, 5
+31, Herman Melville, Israel Potter, 1 
+32, Herman Melville, The Confidence-Man, 2
+33, Herman Melville, Moby Dick; or The Whale, 3
+34, Herman Melville, Omoo: Adventures in the South Seas, 4
+35, Herman Melville, Typee, 5
+36, William Shakespeare, Hamlet, 1
+37, William Shakespeare, Henry VIII, 2 
+38, William Shakespeare, Julius Cesar, 3
+39, William Shakespeare, King Lear, 4 
+40, William Shakespeare, Romeo and Juliet, 5  
+41, Mark Twain, Adventures of Huckleberry Finn, 1
+42, Mark Twain, A Horse's Tale, 2
+43, Mark Twain, The Innocents Abroad, 3
+44, Mark Twain, The Adventures of Tom Sawyer, 4
+45, Mark Twain, A Tramp Abroad, 5
+
