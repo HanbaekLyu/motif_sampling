@@ -15,17 +15,17 @@ Some of our code is also available as the python package [**NNetwork**](https://
 
 &nbsp;
 
-![](Figures/fig1.png)
+![](Figures/repo_figures/fig1.png)
 &nbsp;
-![](Figures/fig2.png)
+![](Figures/repo_figures/fig2.png)
 &nbsp;
-![](Figures/fig3.png)
+![](Figures/repo_figures/fig3.png)
 &nbsp;
-![](Figures/fig4.png)
+![](Figures/repo_figures/fig4.png)
 &nbsp;
-![](Figures/fig5.png)
+![](Figures/repo_figures/fig5.png)
 &nbsp;
-![](Figures/fig6.png)
+![](Figures/repo_figures/fig6.png)
 &nbsp;
 
 ## Usage
